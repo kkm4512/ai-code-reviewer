@@ -52,7 +52,8 @@ jobs:
         with:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_API_MODEL: "gpt-4" # Optional: defaults to "gpt-4"
+          OPENAI_API_MODEL: "gpt-4o-mini" # Optional: defaults to "gpt-4o-mini"
+          COMMENT_LANGUAGE: "en-US" # Optional: defaults to "en-US"
           REVIEW_MAX_COMMENTS: 5 # Optional: defaults to 10
           REVIEW_PROJECT_CONTEXT: "PHP 8.3 + Laravel 10 + PHPUnit 7." # Optional
           exclude: "**/*.json, **/*.md" # Optional: exclude patterns separated by commas

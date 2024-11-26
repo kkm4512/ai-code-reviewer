@@ -51,6 +51,7 @@ const minimatch_1 = __importDefault(__nccwpck_require__(2002));
 const GITHUB_TOKEN = core.getInput("GITHUB_TOKEN");
 const OPENAI_API_KEY = core.getInput("OPENAI_API_KEY");
 const OPENAI_API_MODEL = core.getInput("OPENAI_API_MODEL");
+const COMMENT_LANGUAGE = core.getInput("COMMENT_LANGUAGE");
 const REVIEW_MAX_COMMENTS = core.getInput("REVIEW_MAX_COMMENTS");
 const REVIEW_PROJECT_CONTEXT = core.getInput("REVIEW_PROJECT_CONTEXT");
 const APPROVE_REVIEWS = core.getInput("APPROVE_REVIEWS") === "true";
@@ -118,6 +119,7 @@ function createPrompt(changedFiles, prDetails) {
 - DO NOT give advice on renaming variable names or writing more descriptive variables.
 - Provide comments and suggestions ONLY if there is something to improve, otherwise return an empty array.
 - Provide at most ${REVIEW_MAX_COMMENTS} comments. It's up to you how to decide which comments to include.
+- Write the comment in ${COMMENT_LANGUAGE}.
 - Write the comment in GitHub Markdown format.
 - Use the given description only for the overall context and only comment the code.
 ${REVIEW_PROJECT_CONTEXT
