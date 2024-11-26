@@ -113,20 +113,33 @@ function analyzeCode(changedFiles, prDetails) {
 }
 function createPrompt(changedFiles, prDetails) {
     core.info("Creating prompt for AI...");
-    const problemOutline = `Your task is to review pull requests (PR). Instructions:
-- Provide the response in following JSON format:  {"comments": [{"file": <file name>,  "lineNumber":  <line_number>, "reviewComment": "<review comment>"}]}
+    const problemOutline = `Your task is to review pull requests (PR) with a focus on the following areas:
+- Bug Identification
+- Performance Optimization
+- Code Style and Readability
+- Error Handling
+- Security
+
+Instructions:
+- Provide the response in the following JSON format: {"comments": [{"file": <file name>, "lineNumber": <line_number>, "reviewComment": "<review comment>"}]}
 - DO NOT give positive comments or compliments.
-- DO NOT give advice on renaming variable names or writing more descriptive variables.
-- Provide comments and suggestions ONLY if there is something to improve, otherwise return an empty array.
-- Provide at most ${REVIEW_MAX_COMMENTS} comments. It's up to you how to decide which comments to include.
+- DO NOT suggest renaming variable names or writing more descriptive variables.
+- Provide comments and suggestions ONLY if there is something to improve; otherwise, return an empty array.
 - Write the comment in ${COMMENT_LANGUAGE}.
 - Write the comment in GitHub Markdown format.
-- Use the given description only for the overall context and only comment the code.
+- Use the given description only for overall context; focus your comments on the code itself.
 ${REVIEW_PROJECT_CONTEXT
         ? `- Additional context regarding this PR's project: ${REVIEW_PROJECT_CONTEXT}`
         : ""}
 - IMPORTANT: NEVER suggest adding comments to the code.
 - IMPORTANT: Evaluate the entire diff in the PR before adding any comments.
+
+For each comment, consider:
+1. **Bug Identification**: Are there any potential bugs or logic errors in this code? Could you identify any edge cases where this function might break?
+2. **Performance Optimization**: Are there ways to make this code more efficient? Can you identify anything that might create unnecessary bottlenecks?
+3. **Code Style and Readability**: Does this code follow [project or language] coding conventions? Suggest ways to improve readability.
+4. **Error Handling**: Check if this code has robust error handling. Would it be beneficial to add more specific error messages?
+5. **Security**: Does this code have any potential security vulnerabilities? How could this code be made more resilient to attacks like SQL injection or XSS?
 
 Pull request title: ${prDetails.title}
 Pull request description:
@@ -135,7 +148,7 @@ Pull request description:
 ${prDetails.description}
 ---
 
-TAKE A DEEP BREATH AND WORK ON THIS THIS PROBLEM STEP-BY-STEP.
+TAKE A DEEP BREATH AND WORK ON THIS PROBLEM STEP-BY-STEP.
 `;
     const diffChunksPrompt = new Array();
     for (const file of changedFiles) {
