@@ -136,9 +136,8 @@ ${
 For each comment, consider:
 1. **Bug Identification**: Are there any potential bugs or logic errors in this code? Could you identify any edge cases where this function might break?
 2. **Performance Optimization**: Are there ways to make this code more efficient? Can you identify anything that might create unnecessary bottlenecks?
-3. **Code Style and Readability**: Does this code follow [project or language] coding conventions? Suggest ways to improve readability.
-4. **Error Handling**: Check if this code has robust error handling. Would it be beneficial to add more specific error messages?
-5. **Security**: Does this code have any potential security vulnerabilities? How could this code be made more resilient to attacks like SQL injection or XSS?
+3. **Error Handling**: Check if this code has robust error handling. Would it be beneficial to add more specific error messages?
+4. **Security**: Does this code have any potential security vulnerabilities? How could this code be made more resilient to attacks like SQL injection or XSS?
 
 Pull request title: ${prDetails.title}
 Pull request description:
