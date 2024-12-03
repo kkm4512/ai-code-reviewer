@@ -113,7 +113,6 @@ function createPrompt(changedFiles: File[], prDetails: PRDetails): string {
   const problemOutline = `Your task is to review pull requests (PR) with a focus on the following areas:
 - Bug Identification
 - Performance Optimization
-- Code Style and Readability
 - Error Handling
 - Security
 
@@ -138,6 +137,7 @@ For each comment, consider:
 2. **Performance Optimization**: Are there ways to make this code more efficient? Can you identify anything that might create unnecessary bottlenecks?
 3. **Error Handling**: Check if this code has robust error handling. Would it be beneficial to add more specific error messages?
 4. **Security**: Does this code have any potential security vulnerabilities? How could this code be made more resilient to attacks like SQL injection or XSS?
+5. **Code Example**: Give specific code example if there are suggestions.
 
 Pull request title: ${prDetails.title}
 Pull request description:
