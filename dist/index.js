@@ -238,7 +238,7 @@ function createComments(changedFiles, aiResponses) {
         var _a;
         const file = changedFiles.find((file) => file.to === aiResponse.file);
         return {
-            body: aiResponse.reviewComment,
+            body: `**[AI Review Bot]**\n${aiResponse.reviewComment}`,
             path: (_a = file === null || file === void 0 ? void 0 : file.to) !== null && _a !== void 0 ? _a : "",
             line: Number(aiResponse.lineNumber),
         };
