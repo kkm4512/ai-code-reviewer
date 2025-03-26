@@ -254,7 +254,7 @@ function createComments(
       const file = changedFiles.find((file) => file.to === aiResponse.file);
 
       return {
-        body: aiResponse.reviewComment,
+        body: `**[AI Review Bot]**\n${aiResponse.reviewComment}`,
         path: file?.to ?? "",
         line: Number(aiResponse.lineNumber),
       };
