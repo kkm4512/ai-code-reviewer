@@ -184,7 +184,7 @@ async function getAIResponse(
   const queryConfig = {
     model: OPENAI_API_MODEL,
     temperature: 0.2,
-    max_tokens: RESPONSE_TOKENS,
+    max_completion_tokens: RESPONSE_TOKENS,
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
