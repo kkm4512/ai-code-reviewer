@@ -55,7 +55,7 @@ const COMMENT_LANGUAGE = core.getInput("COMMENT_LANGUAGE");
 const REVIEW_MAX_COMMENTS = core.getInput("REVIEW_MAX_COMMENTS");
 const REVIEW_PROJECT_CONTEXT = core.getInput("REVIEW_PROJECT_CONTEXT");
 const APPROVE_REVIEWS = core.getInput("APPROVE_REVIEWS") === "true";
-const RESPONSE_TOKENS = 4096;
+const RESPONSE_TOKENS = 1024;
 const octokit = new rest_1.Octokit({ auth: GITHUB_TOKEN });
 const openai = new openai_1.default({
     apiKey: OPENAI_API_KEY,
@@ -175,141 +175,62 @@ function createPromptForDiffChunk(file, chunk) {
   `;
 }
 function getAIResponse(prompt) {
-  return __awaiter(this, void 0, void 0, function* () {
-    core.info("Sending request to OpenAI API...");
-
-    const MODEL = OPENAI_API_MODEL;
-    const TOKENS = RESPONSE_TOKENS;
-
-    try {
-      let text = "";
-      let rawObj = null;
-
-      const canResponses =
-        openai && openai.responses && typeof openai.responses.create === "function";
-
-      if (canResponses) {
-        const resp = yield openai.responses.create({
-          model: MODEL,
-          input: prompt,
-          text: { format: { type: "json_object" } },
-          reasoning: { effort: "low" },
-          max_output_tokens: TOKENS
-        });
-        rawObj = resp;
-
-        // 1) 편의 필드
-        // @ts-ignore
-        text = resp.output_text || "";
-
-        // 2) output[] 전체에서 output_text / json 탐색
-        if ((!text || typeof text !== "string") && Array.isArray(resp.output)) {
-          for (const item of resp.output) {
-            if (item && item.type === "message" && Array.isArray(item.content)) {
-              for (const c of item.content) {
-                if (c?.type === "output_text") {
-                  // SDK 버전에 따라 c.text 또는 c.text.value
-                  text = (typeof c.text === "string" ? c.text : (c.text?.value || ""));
-                  if (text) break;
-                }
-                if (c?.type === "json" && c.json) {
-                  if (Array.isArray(c.json?.comments)) {
-                    core.info("Structured JSON content detected; using it directly.");
-                    return c.json.comments;
-                  }
-                }
-              }
-              if (text) break;
+    var _a, _b;
+    return __awaiter(this, void 0, void 0, function* () {
+        core.info("Sending request to OpenAI API...");
+        const queryConfig = {
+            model: OPENAI_API_MODEL,
+            temperature: 0.2,
+            max_tokens: RESPONSE_TOKENS,
+            top_p: 1,
+            frequency_penalty: 0,
+            presence_penalty: 0,
+            response_format: {
+                type: "json_object",
+            },
+        };
+        try {
+            const response = yield openai.chat.completions.create(Object.assign(Object.assign({}, queryConfig), { messages: [
+                    {
+                        role: "system",
+                        content: prompt,
+                    },
+                ] }));
+            if (!response.choices || response.choices.length === 0) {
+                throw new Error("OpenAI API returned an invalid response");
             }
-          }
-        }
-
-      } else {
-        const r = yield fetch("https://api.openai.com/v1/responses", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${OPENAI_API_KEY}`
-          },
-          body: JSON.stringify({
-            model: MODEL,
-            input: prompt,
-            text: { format: { type: "json_object" } },
-            reasoning: { effort: "low" },
-            max_output_tokens: TOKENS
-          })
-        });
-        if (!r.ok) {
-          const errTxt = yield r.text();
-          throw new Error(`Responses HTTP ${r.status}: ${errTxt}`);
-        }
-        const j = yield r.json();
-        rawObj = j;
-
-        text = j.output_text || "";
-
-        if ((!text || typeof text !== "string") && Array.isArray(j.output)) {
-          for (const item of j.output) {
-            if (item && item.type === "message" && Array.isArray(item.content)) {
-              for (const c of item.content) {
-                if (c?.type === "output_text") {
-                  text = (typeof c.text === "string" ? c.text : (c.text?.value || ""));
-                  if (text) break;
+            core.info("Received response from OpenAI API.");
+            const res = ((_b = (_a = response.choices[0].message) === null || _a === void 0 ? void 0 : _a.content) === null || _b === void 0 ? void 0 : _b.trim()) || "{}";
+            // Remove any markdown formatting and ensure valid JSON
+            const jsonString = res.replace(/^```json\s*|\s*```$/g, "").trim();
+            try {
+                let data = JSON.parse(jsonString);
+                if (!Array.isArray(data === null || data === void 0 ? void 0 : data.comments)) {
+                    throw new Error("Invalid response from OpenAI API");
                 }
-                if (c?.type === "json" && c.json) {
-                  if (Array.isArray(c.json?.comments)) {
-                    core.info("Structured JSON content detected (HTTP); using it directly.");
-                    return c.json.comments;
-                  }
-                }
-              }
-              if (text) break;
+                return data.comments;
             }
-          }
+            catch (parseError) {
+                core.error(`Failed to parse JSON: ${jsonString}`);
+                core.error(`Parse error: ${parseError}`);
+                throw parseError;
+            }
         }
-      }
-
-      if (!text || typeof text !== "string") {
-        core.info("Empty response text; returning empty comments.");
-        try { core.info("RAW_OBJECT: " + JSON.stringify(rawObj, null, 2)); } catch (_e) {}
-        return [];
-      }
-
-      core.info("Received response from OpenAI API.");
-      const jsonString = String(text).replace(/^```json\s*|\s*```$/g, "").trim();
-
-      try {
-        const data = JSON.parse(jsonString);
-        if (!Array.isArray(data?.comments)) {
-          throw new Error("Invalid response from OpenAI API");
+        catch (error) {
+            core.error("Error Message:", (error === null || error === void 0 ? void 0 : error.message) || error);
+            if (error === null || error === void 0 ? void 0 : error.response) {
+                core.error("Response Data:", error.response.data);
+                core.error("Response Status:", error.response.status);
+                core.error("Response Headers:", error.response.headers);
+            }
+            if (error === null || error === void 0 ? void 0 : error.config) {
+                core.error("Config:", error.config);
+            }
+            core.setFailed(`OpenAI API request failed: ${error.message}`);
+            throw error;
         }
-        return data.comments;
-      } catch (parseError) {
-        core.warning("Failed to parse JSON. Dumping raw outputs for inspection.");
-        core.info("RAW_TEXT: " + jsonString);
-        try { core.info("RAW_OBJECT: " + JSON.stringify(rawObj, null, 2)); } catch (_e) {}
-        return [];
-      }
-    } catch (error) {
-      core.error("Error Message:", (error?.message) || error);
-      if (error?.response) {
-        core.error("Response Data:", error.response.data);
-        core.error("Response Status:", error.response.status);
-        core.error("Response Headers:", error.response.headers);
-      }
-      if (error?.config) {
-        core.error("Config:", error.config);
-      }
-      core.setFailed(`OpenAI API request failed: ${error.message}`);
-      throw error;
-    }
-  });
+    });
 }
-
-
-
-
-
 function createComments(changedFiles, aiResponses) {
     core.info("Creating GitHub comments from AI responses...");
     return aiResponses
@@ -23775,11 +23696,3 @@ module.exports = JSON.parse('[[[0,44],"disallowed_STD3_valid"],[[45,46],"valid"]
 /******/ })()
 ;
 //# sourceMappingURL=index.js.map
-
-
-
-
-
-
-
-
