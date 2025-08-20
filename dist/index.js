@@ -178,37 +178,65 @@ function getAIResponse(prompt) {
   return __awaiter(this, void 0, void 0, function* () {
     core.info("Sending request to OpenAI API...");
 
-    const queryConfig = {
-      model: OPENAI_API_MODEL,
-      // gpt-5/o1/o3 계열은 max_completion_tokens 사용
-      max_completion_tokens: RESPONSE_TOKENS,
-      response_format: { type: "json_object" },
-    };
+    const MODEL = OPENAI_API_MODEL;
+    const TOKENS = RESPONSE_TOKENS;
 
     try {
-      // ✅ Chat Completions → Responses API
-      const response = yield openai.responses.create(
-        Object.assign({}, queryConfig, { input: prompt })
-      );
+      let text;
 
-      // ✅ Responses API 파싱 (choices 없음)
-      // SDK 편의 필드 우선 사용
-      // @ts-ignore
-      let text = response.output_text;
-      if (!text) {
-        // 폴백 (SDK/모델별 구조 차이 대응)
+      // responses.create 지원 여부 확인
+      const canResponses =
+        openai && openai.responses && typeof openai.responses.create === "function";
+
+      if (canResponses) {
+        // ✅ Responses API 경로
+        const resp = yield openai.responses.create({
+          model: MODEL,
+          input: prompt,
+          response_format: { type: "json_object" },
+          max_completion_tokens: TOKENS
+        });
+
+        // SDK 편의 필드 → 폴백 순서
         // @ts-ignore
-        text = (((response.output || [])[0] || {}).content || [])[0]?.text?.value || "";
+        text = resp.output_text ||
+               // @ts-ignore
+               ((((resp.output || [])[0] || {}).content || [])[0]?.text?.value) ||
+               "";
+      } else {
+        // ✅ SDK 구버전 대비: HTTP 폴백
+        const r = yield fetch("https://api.openai.com/v1/responses", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${OPENAI_API_KEY}`
+          },
+          body: JSON.stringify({
+            model: MODEL,
+            input: prompt,
+            response_format: { type: "json_object" },
+            max_completion_tokens: TOKENS
+          })
+        });
+        if (!r.ok) {
+          const errTxt = yield r.text();
+          throw new Error(`Responses HTTP ${r.status}: ${errTxt}`);
+        }
+        const j = yield r.json();
+        text = j.output_text ||
+               ((((j.output || [])[0] || {}).content || [])[0]?.text?.value) ||
+               "";
       }
 
       if (!text || typeof text !== "string") {
-        throw new Error("OpenAI API returned an empty response");
+        core.info("Empty response text; returning empty comments.");
+        return [];
       }
 
       core.info("Received response from OpenAI API.");
 
-      // 코드펜스 제거 후 JSON 파싱
-      const jsonString = text.replace(/^```json\s*|\s*```$/g, "").trim();
+      // ```json 래핑 제거 후 파싱
+      const jsonString = String(text).replace(/^```json\s*|\s*```$/g, "").trim();
 
       try {
         const data = JSON.parse(jsonString);
@@ -222,7 +250,7 @@ function getAIResponse(prompt) {
         throw parseError;
       }
     } catch (error) {
-      core.error("Error Message:", (error === null || error === void 0 ? void 0 : error.message) || error);
+      core.error("Error Message:", (error?.message) || error);
       if (error?.response) {
         core.error("Response Data:", error.response.data);
         core.error("Response Status:", error.response.status);
@@ -236,6 +264,7 @@ function getAIResponse(prompt) {
     }
   });
 }
+
 
 function createComments(changedFiles, aiResponses) {
     core.info("Creating GitHub comments from AI responses...");
@@ -23702,4 +23731,5 @@ module.exports = JSON.parse('[[[0,44],"disallowed_STD3_valid"],[[45,46],"valid"]
 /******/ })()
 ;
 //# sourceMappingURL=index.js.map
+
 
