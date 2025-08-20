@@ -184,38 +184,50 @@ async function getAIResponse(
   const queryConfig = {
     model: OPENAI_API_MODEL,
     temperature: 0.2,
-    max_completion_tokens: RESPONSE_TOKENS,
+    max_completion_tokens: RESPONSE_TOKENS, // 또는 max_output_tokens
     top_p: 1,
+    // 필요 없다면 아래 두 개는 빼도 됩니다(Responses API에서 옵션 미지원 모델이 있을 수 있음)
     frequency_penalty: 0,
     presence_penalty: 0,
-    response_format: {
-      type: "json_object",
-    } as const,
+    response_format: { type: "json_object" as const },
   };
 
   try {
     const response = await openai.responses.create({
       ...queryConfig,
-      // Responses API는 messages 대신 input 사용
       input: prompt,
     });
 
-    if (!response.choices || response.choices.length === 0) {
-      throw new Error("OpenAI API returned an invalid response");
+    // ✅ Responses API 파싱
+    // 최신 SDK 편의 필드
+    // @ts-ignore - SDK 버전에 따라 타입 정의가 다를 수 있음
+    let text: string = response.output_text;
+
+    // 편의 필드가 없을 때 대비 폴백
+    if (!text) {
+      // @ts-ignore
+      const first = response.output?.[0]?.content?.[0];
+      if (first?.type === "output_text" && first?.text?.value) {
+        // @ts-ignore
+        text = first.text.value as string;
+      }
+    }
+
+    if (!text || typeof text !== "string") {
+      throw new Error("OpenAI Responses API returned empty output");
     }
 
     core.info("Received response from OpenAI API.");
-    const res = response.choices[0].message?.content?.trim() || "{}";
 
-    // Remove any markdown formatting and ensure valid JSON
-    const jsonString = res.replace(/^```json\s*|\s*```$/g, "").trim();
+    // ```json ... ``` 래핑 제거
+    const jsonString = text.replace(/^```json\s*|\s*```$/g, "").trim();
 
     try {
-      let data = JSON.parse(jsonString);
+      const data = JSON.parse(jsonString);
       if (!Array.isArray(data?.comments)) {
-        throw new Error("Invalid response from OpenAI API");
+        throw new Error("Invalid response shape: missing 'comments' array");
       }
-      return data.comments;
+      return data.comments as Array<AICommentResponse>;
     } catch (parseError) {
       core.error(`Failed to parse JSON: ${jsonString}`);
       core.error(`Parse error: ${parseError}`);
