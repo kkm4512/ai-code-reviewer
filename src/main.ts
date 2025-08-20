@@ -194,14 +194,10 @@ async function getAIResponse(
   };
 
   try {
-    const response = await openai.chat.completions.create({
+    const response = await openai.responses.create({
       ...queryConfig,
-      messages: [
-        {
-          role: "system",
-          content: prompt,
-        },
-      ],
+      // Responses API는 messages 대신 input 사용
+      input: prompt,
     });
 
     if (!response.choices || response.choices.length === 0) {
