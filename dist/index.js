@@ -184,27 +184,26 @@ function getAIResponse(prompt) {
     try {
       let text;
 
-      // responses.create 지원 여부 확인
       const canResponses =
         openai && openai.responses && typeof openai.responses.create === "function";
 
       if (canResponses) {
-        // ✅ Responses API 경로
+        // ✅ Responses API (SDK)
         const resp = yield openai.responses.create({
           model: MODEL,
           input: prompt,
-          response_format: { type: "json_object" },
+          // ⬇️ 여기 변경
+          text: { format: "json_object" },
           max_completion_tokens: TOKENS
         });
 
-        // SDK 편의 필드 → 폴백 순서
         // @ts-ignore
         text = resp.output_text ||
                // @ts-ignore
                ((((resp.output || [])[0] || {}).content || [])[0]?.text?.value) ||
                "";
       } else {
-        // ✅ SDK 구버전 대비: HTTP 폴백
+        // ✅ Responses API (HTTP 폴백)
         const r = yield fetch("https://api.openai.com/v1/responses", {
           method: "POST",
           headers: {
@@ -214,7 +213,8 @@ function getAIResponse(prompt) {
           body: JSON.stringify({
             model: MODEL,
             input: prompt,
-            response_format: { type: "json_object" },
+            // ⬇️ 여기 변경
+            text: { format: "json_object" },
             max_completion_tokens: TOKENS
           })
         });
@@ -235,20 +235,13 @@ function getAIResponse(prompt) {
 
       core.info("Received response from OpenAI API.");
 
-      // ```json 래핑 제거 후 파싱
       const jsonString = String(text).replace(/^```json\s*|\s*```$/g, "").trim();
-
-      try {
-        const data = JSON.parse(jsonString);
-        if (!Array.isArray(data?.comments)) {
-          throw new Error("Invalid response from OpenAI API");
-        }
-        return data.comments;
-      } catch (parseError) {
-        core.error(`Failed to parse JSON: ${jsonString}`);
-        core.error(`Parse error: ${parseError}`);
-        throw parseError;
+      const data = JSON.parse(jsonString);
+      if (!Array.isArray(data?.comments)) {
+        throw new Error("Invalid response from OpenAI API");
       }
+      return data.comments;
+
     } catch (error) {
       core.error("Error Message:", (error?.message) || error);
       if (error?.response) {
@@ -264,6 +257,7 @@ function getAIResponse(prompt) {
     }
   });
 }
+
 
 
 function createComments(changedFiles, aiResponses) {
@@ -23731,5 +23725,6 @@ module.exports = JSON.parse('[[[0,44],"disallowed_STD3_valid"],[[45,46],"valid"]
 /******/ })()
 ;
 //# sourceMappingURL=index.js.map
+
 
 
