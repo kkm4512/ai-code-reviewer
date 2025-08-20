@@ -55,7 +55,7 @@ const COMMENT_LANGUAGE = core.getInput("COMMENT_LANGUAGE");
 const REVIEW_MAX_COMMENTS = core.getInput("REVIEW_MAX_COMMENTS");
 const REVIEW_PROJECT_CONTEXT = core.getInput("REVIEW_PROJECT_CONTEXT");
 const APPROVE_REVIEWS = core.getInput("APPROVE_REVIEWS") === "true";
-const RESPONSE_TOKENS = 1024;
+const RESPONSE_TOKENS = 4096;
 const octokit = new rest_1.Octokit({ auth: GITHUB_TOKEN });
 const openai = new openai_1.default({
     apiKey: OPENAI_API_KEY,
@@ -193,6 +193,7 @@ function getAIResponse(prompt) {
         const resp = yield openai.responses.create({
           model: MODEL,
           input: prompt,
+		  reasoning: { effort: "low" },
           text: { format: { type: "json_object" } },
           max_output_tokens: TOKENS
         });
@@ -229,6 +230,7 @@ function getAIResponse(prompt) {
             model: MODEL,
             input: prompt,
             text: { format: { type: "json_object" } },
+			reasoning: { effort: "low" },
             max_output_tokens: TOKENS
           })
         });
@@ -23765,6 +23767,7 @@ module.exports = JSON.parse('[[[0,44],"disallowed_STD3_valid"],[[45,46],"valid"]
 /******/ })()
 ;
 //# sourceMappingURL=index.js.map
+
 
 
 
