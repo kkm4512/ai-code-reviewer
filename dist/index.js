@@ -182,44 +182,49 @@ function getAIResponse(prompt) {
     const TOKENS = RESPONSE_TOKENS;
 
     try {
-      let text;
-      let rawObj = null; // 원본 응답을 담아 디버깅 출력용으로 사용
+      let text = "";
+      let rawObj = null;
 
       const canResponses =
         openai && openai.responses && typeof openai.responses.create === "function";
 
       if (canResponses) {
-        // ✅ Responses API (SDK)
         const resp = yield openai.responses.create({
           model: MODEL,
           input: prompt,
-		  reasoning: { effort: "low" },
           text: { format: { type: "json_object" } },
+          reasoning: { effort: "low" },
           max_output_tokens: TOKENS
         });
         rawObj = resp;
 
+        // 1) 편의 필드
         // @ts-ignore
-        text = resp.output_text ||
-               // @ts-ignore
-               ((((resp.output || [])[0] || {}).content || [])[0]?.text?.value) ||
-               "";
+        text = resp.output_text || "";
 
-        // ⚠️ 텍스트가 비면 구조화 JSON 컨텐츠 탐색
-        if (!text) {
-          try {
-            // @ts-ignore
-            const items = ((((resp.output || [])[0] || {}).content) || []);
-            const jsonItem = items.find(i => i && i.type === "json" && i.json);
-            if (jsonItem && Array.isArray(jsonItem.json?.comments)) {
-              core.info("Structured JSON content detected; using it directly.");
-              return jsonItem.json.comments;
+        // 2) output[] 전체에서 output_text / json 탐색
+        if ((!text || typeof text !== "string") && Array.isArray(resp.output)) {
+          for (const item of resp.output) {
+            if (item && item.type === "message" && Array.isArray(item.content)) {
+              for (const c of item.content) {
+                if (c?.type === "output_text") {
+                  // SDK 버전에 따라 c.text 또는 c.text.value
+                  text = (typeof c.text === "string" ? c.text : (c.text?.value || ""));
+                  if (text) break;
+                }
+                if (c?.type === "json" && c.json) {
+                  if (Array.isArray(c.json?.comments)) {
+                    core.info("Structured JSON content detected; using it directly.");
+                    return c.json.comments;
+                  }
+                }
+              }
+              if (text) break;
             }
-          } catch (_e) { /* ignore */ }
+          }
         }
 
       } else {
-        // ✅ Responses API (HTTP 폴백)
         const r = yield fetch("https://api.openai.com/v1/responses", {
           method: "POST",
           headers: {
@@ -230,7 +235,7 @@ function getAIResponse(prompt) {
             model: MODEL,
             input: prompt,
             text: { format: { type: "json_object" } },
-			reasoning: { effort: "low" },
+            reasoning: { effort: "low" },
             max_output_tokens: TOKENS
           })
         });
@@ -241,33 +246,36 @@ function getAIResponse(prompt) {
         const j = yield r.json();
         rawObj = j;
 
-        text = j.output_text ||
-               ((((j.output || [])[0] || {}).content || [])[0]?.text?.value) ||
-               "";
+        text = j.output_text || "";
 
-        // ⚠️ 텍스트가 비면 구조화 JSON 컨텐츠 탐색
-        if (!text) {
-          try {
-            const items = ((((j.output || [])[0] || {}).content) || []);
-            const jsonItem = items.find(i => i && i.type === "json" && i.json);
-            if (jsonItem && Array.isArray(jsonItem.json?.comments)) {
-              core.info("Structured JSON content detected (HTTP); using it directly.");
-              return jsonItem.json.comments;
+        if ((!text || typeof text !== "string") && Array.isArray(j.output)) {
+          for (const item of j.output) {
+            if (item && item.type === "message" && Array.isArray(item.content)) {
+              for (const c of item.content) {
+                if (c?.type === "output_text") {
+                  text = (typeof c.text === "string" ? c.text : (c.text?.value || ""));
+                  if (text) break;
+                }
+                if (c?.type === "json" && c.json) {
+                  if (Array.isArray(c.json?.comments)) {
+                    core.info("Structured JSON content detected (HTTP); using it directly.");
+                    return c.json.comments;
+                  }
+                }
+              }
+              if (text) break;
             }
-          } catch (_e) { /* ignore */ }
+          }
         }
       }
 
       if (!text || typeof text !== "string") {
         core.info("Empty response text; returning empty comments.");
-        // 🔍 원문 전체 덤프
         try { core.info("RAW_OBJECT: " + JSON.stringify(rawObj, null, 2)); } catch (_e) {}
         return [];
       }
 
       core.info("Received response from OpenAI API.");
-
-      // ```json 래핑 제거 후 파싱
       const jsonString = String(text).replace(/^```json\s*|\s*```$/g, "").trim();
 
       try {
@@ -277,7 +285,6 @@ function getAIResponse(prompt) {
         }
         return data.comments;
       } catch (parseError) {
-        // ❗ JSON 파싱 실패: 원문 텍스트 + 원본 응답을 로그로 보여주고 빈 배열 반환
         core.warning("Failed to parse JSON. Dumping raw outputs for inspection.");
         core.info("RAW_TEXT: " + jsonString);
         try { core.info("RAW_OBJECT: " + JSON.stringify(rawObj, null, 2)); } catch (_e) {}
@@ -298,6 +305,7 @@ function getAIResponse(prompt) {
     }
   });
 }
+
 
 
 
@@ -23767,6 +23775,7 @@ module.exports = JSON.parse('[[[0,44],"disallowed_STD3_valid"],[[45,46],"valid"]
 /******/ })()
 ;
 //# sourceMappingURL=index.js.map
+
 
 
 
