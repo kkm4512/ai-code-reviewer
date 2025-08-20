@@ -183,6 +183,7 @@ function getAIResponse(prompt) {
 
     try {
       let text;
+      let rawObj = null; // 원본 응답을 담아 디버깅 출력용으로 사용
 
       const canResponses =
         openai && openai.responses && typeof openai.responses.create === "function";
@@ -192,16 +193,30 @@ function getAIResponse(prompt) {
         const resp = yield openai.responses.create({
           model: MODEL,
           input: prompt,
-          // ⬇️ 여기 변경
-          text: { format: { type: "json_object" } }, // ← 그리고 여기!
+          text: { format: { type: "json_object" } },
           max_output_tokens: TOKENS
         });
+        rawObj = resp;
 
         // @ts-ignore
         text = resp.output_text ||
                // @ts-ignore
                ((((resp.output || [])[0] || {}).content || [])[0]?.text?.value) ||
                "";
+
+        // ⚠️ 텍스트가 비면 구조화 JSON 컨텐츠 탐색
+        if (!text) {
+          try {
+            // @ts-ignore
+            const items = ((((resp.output || [])[0] || {}).content) || []);
+            const jsonItem = items.find(i => i && i.type === "json" && i.json);
+            if (jsonItem && Array.isArray(jsonItem.json?.comments)) {
+              core.info("Structured JSON content detected; using it directly.");
+              return jsonItem.json.comments;
+            }
+          } catch (_e) { /* ignore */ }
+        }
+
       } else {
         // ✅ Responses API (HTTP 폴백)
         const r = yield fetch("https://api.openai.com/v1/responses", {
@@ -213,8 +228,7 @@ function getAIResponse(prompt) {
           body: JSON.stringify({
             model: MODEL,
             input: prompt,
-            // ⬇️ 여기 변경
-            text: { format: { type: "json_object" } }, // ← 그리고 여기!
+            text: { format: { type: "json_object" } },
             max_output_tokens: TOKENS
           })
         });
@@ -223,25 +237,50 @@ function getAIResponse(prompt) {
           throw new Error(`Responses HTTP ${r.status}: ${errTxt}`);
         }
         const j = yield r.json();
+        rawObj = j;
+
         text = j.output_text ||
                ((((j.output || [])[0] || {}).content || [])[0]?.text?.value) ||
                "";
+
+        // ⚠️ 텍스트가 비면 구조화 JSON 컨텐츠 탐색
+        if (!text) {
+          try {
+            const items = ((((j.output || [])[0] || {}).content) || []);
+            const jsonItem = items.find(i => i && i.type === "json" && i.json);
+            if (jsonItem && Array.isArray(jsonItem.json?.comments)) {
+              core.info("Structured JSON content detected (HTTP); using it directly.");
+              return jsonItem.json.comments;
+            }
+          } catch (_e) { /* ignore */ }
+        }
       }
 
       if (!text || typeof text !== "string") {
         core.info("Empty response text; returning empty comments.");
+        // 🔍 원문 전체 덤프
+        try { core.info("RAW_OBJECT: " + JSON.stringify(rawObj, null, 2)); } catch (_e) {}
         return [];
       }
 
       core.info("Received response from OpenAI API.");
 
+      // ```json 래핑 제거 후 파싱
       const jsonString = String(text).replace(/^```json\s*|\s*```$/g, "").trim();
-      const data = JSON.parse(jsonString);
-      if (!Array.isArray(data?.comments)) {
-        throw new Error("Invalid response from OpenAI API");
-      }
-      return data.comments;
 
+      try {
+        const data = JSON.parse(jsonString);
+        if (!Array.isArray(data?.comments)) {
+          throw new Error("Invalid response from OpenAI API");
+        }
+        return data.comments;
+      } catch (parseError) {
+        // ❗ JSON 파싱 실패: 원문 텍스트 + 원본 응답을 로그로 보여주고 빈 배열 반환
+        core.warning("Failed to parse JSON. Dumping raw outputs for inspection.");
+        core.info("RAW_TEXT: " + jsonString);
+        try { core.info("RAW_OBJECT: " + JSON.stringify(rawObj, null, 2)); } catch (_e) {}
+        return [];
+      }
     } catch (error) {
       core.error("Error Message:", (error?.message) || error);
       if (error?.response) {
@@ -257,6 +296,7 @@ function getAIResponse(prompt) {
     }
   });
 }
+
 
 
 
@@ -23725,6 +23765,7 @@ module.exports = JSON.parse('[[[0,44],"disallowed_STD3_valid"],[[45,46],"valid"]
 /******/ })()
 ;
 //# sourceMappingURL=index.js.map
+
 
 
 
