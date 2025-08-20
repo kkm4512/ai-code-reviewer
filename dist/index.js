@@ -175,61 +175,100 @@ function createPromptForDiffChunk(file, chunk) {
   `;
 }
 function getAIResponse(prompt) {
-    var _a, _b;
-    return __awaiter(this, void 0, void 0, function* () {
-        core.info("Sending request to OpenAI API...");
-        const queryConfig = {
-            model: OPENAI_API_MODEL,
-            max_completion_tokens: RESPONSE_TOKENS,
-            top_p: 1,
-            frequency_penalty: 0,
-            presence_penalty: 0,
-            response_format: {
-                type: "json_object",
-            },
-        };
+  return __awaiter(this, void 0, void 0, function* () {
+    core.info("Sending request to OpenAI API...");
+
+    // 모델에 따라 Responses API(신규) vs Chat Completions(구) 분기
+    const USE_RESPONSES_API = /^(gpt-5|o1|o3)/i.test(OPENAI_API_MODEL);
+
+    try {
+      if (USE_RESPONSES_API) {
+        // ✅ gpt-5 / o1 / o3 계열: Responses API 사용, max_completion_tokens 적용
+        const resp = yield openai.responses.create({
+          model: OPENAI_API_MODEL,
+          input: prompt,
+          // reasoning 계열은 temperature/top_p/penalty 미지원인 경우가 많으니 제외
+          response_format: { type: "json_object" },
+          max_completion_tokens: RESPONSE_TOKENS
+        });
+
+        // ✅ Responses API 파싱 (SDK 버전별 호환)
+        // 편의 필드
+        var text = resp.output_text;
+        // 폴백 경로
+        if (!text) {
+          try {
+            text = (((resp.output || [])[0] || {}).content || [])[0]?.text?.value || "";
+          } catch (_e) {
+            text = "";
+          }
+        }
+
+        if (!text || typeof text !== "string") {
+          core.info("Empty response text; returning empty comments.");
+          return [];
+        }
+
+        // 코드펜스 제거 후 JSON 파싱
+        var jsonString = text.replace(/^```json\s*|\s*```$/g, "").trim();
         try {
-            const response = yield openai.chat.completions.create(Object.assign(Object.assign({}, queryConfig), { messages: [
-                    {
-                        role: "system",
-                        content: prompt,
-                    },
-                ] }));
-            if (!response.choices || response.choices.length === 0) {
-                throw new Error("OpenAI API returned an invalid response");
-            }
-            core.info("Received response from OpenAI API.");
-            const res = ((_b = (_a = response.choices[0].message) === null || _a === void 0 ? void 0 : _a.content) === null || _b === void 0 ? void 0 : _b.trim()) || "{}";
-            // Remove any markdown formatting and ensure valid JSON
-            const jsonString = res.replace(/^```json\s*|\s*```$/g, "").trim();
-            try {
-                let data = JSON.parse(jsonString);
-                if (!Array.isArray(data === null || data === void 0 ? void 0 : data.comments)) {
-                    throw new Error("Invalid response from OpenAI API");
-                }
-                return data.comments;
-            }
-            catch (parseError) {
-                core.error(`Failed to parse JSON: ${jsonString}`);
-                core.error(`Parse error: ${parseError}`);
-                throw parseError;
-            }
+          var data = JSON.parse(jsonString);
+          if (!Array.isArray(data && data.comments)) {
+            throw new Error("Invalid response from OpenAI API");
+          }
+          return data.comments;
+        } catch (parseError) {
+          core.error("Failed to parse JSON: " + jsonString);
+          core.error("Parse error: " + parseError);
+          throw parseError;
         }
-        catch (error) {
-            core.error("Error Message:", (error === null || error === void 0 ? void 0 : error.message) || error);
-            if (error === null || error === void 0 ? void 0 : error.response) {
-                core.error("Response Data:", error.response.data);
-                core.error("Response Status:", error.response.status);
-                core.error("Response Headers:", error.response.headers);
-            }
-            if (error === null || error === void 0 ? void 0 : error.config) {
-                core.error("Config:", error.config);
-            }
-            core.setFailed(`OpenAI API request failed: ${error.message}`);
-            throw error;
+
+      } else {
+        // ✅ gpt-4o / gpt-4o-mini 등: Chat Completions + max_tokens
+        const response = yield openai.chat.completions.create({
+          model: OPENAI_API_MODEL,
+          messages: [{ role: "system", content: prompt }],
+          max_tokens: RESPONSE_TOKENS,
+          top_p: 1
+        });
+
+        if (!response.choices || response.choices.length === 0) {
+          throw new Error("OpenAI API returned an invalid response");
         }
-    });
+
+        const res = (response.choices[0].message && response.choices[0].message.content
+          ? response.choices[0].message.content.trim()
+          : "{}");
+
+        const jsonString = res.replace(/^```json\s*|\s*```$/g, "").trim();
+        try {
+          var data = JSON.parse(jsonString);
+          if (!Array.isArray(data && data.comments)) {
+            throw new Error("Invalid response from OpenAI API");
+          }
+          return data.comments;
+        } catch (parseError) {
+          core.error("Failed to parse JSON: " + jsonString);
+          core.error("Parse error: " + parseError);
+          throw parseError;
+        }
+      }
+    } catch (error) {
+      core.error("Error Message:", (error && error.message) || error);
+      if (error && error.response) {
+        core.error("Response Data:", error.response.data);
+        core.error("Response Status:", error.response.status);
+        core.error("Response Headers:", error.response.headers);
+      }
+      if (error && error.config) {
+        core.error("Config:", error.config);
+      }
+      core.setFailed("OpenAI API request failed: " + error.message);
+      throw error;
+    }
+  });
 }
+
 function createComments(changedFiles, aiResponses) {
     core.info("Creating GitHub comments from AI responses...");
     return aiResponses
@@ -23695,5 +23734,6 @@ module.exports = JSON.parse('[[[0,44],"disallowed_STD3_valid"],[[45,46],"valid"]
 /******/ })()
 ;
 //# sourceMappingURL=index.js.map
+
 
 
