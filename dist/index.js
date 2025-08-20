@@ -193,7 +193,7 @@ function getAIResponse(prompt) {
           model: MODEL,
           input: prompt,
           // ⬇️ 여기 변경
-          text: { format: "json_object" },
+          text: { format: { type: "json_object" } }, // ← 그리고 여기!
           max_output_tokens: TOKENS
         });
 
@@ -214,7 +214,7 @@ function getAIResponse(prompt) {
             model: MODEL,
             input: prompt,
             // ⬇️ 여기 변경
-            text: { format: "json_object" },
+            text: { format: { type: "json_object" } }, // ← 그리고 여기!
             max_output_tokens: TOKENS
           })
         });
@@ -23725,6 +23725,7 @@ module.exports = JSON.parse('[[[0,44],"disallowed_STD3_valid"],[[45,46],"valid"]
 /******/ })()
 ;
 //# sourceMappingURL=index.js.map
+
 
 
 
