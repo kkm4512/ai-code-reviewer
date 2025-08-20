@@ -194,7 +194,7 @@ function getAIResponse(prompt) {
           input: prompt,
           // ⬇️ 여기 변경
           text: { format: "json_object" },
-          max_completion_tokens: TOKENS
+          max_output_tokens: TOKENS
         });
 
         // @ts-ignore
@@ -215,7 +215,7 @@ function getAIResponse(prompt) {
             input: prompt,
             // ⬇️ 여기 변경
             text: { format: "json_object" },
-            max_completion_tokens: TOKENS
+            max_output_tokens: TOKENS
           })
         });
         if (!r.ok) {
@@ -23725,6 +23725,7 @@ module.exports = JSON.parse('[[[0,44],"disallowed_STD3_valid"],[[45,46],"valid"]
 /******/ })()
 ;
 //# sourceMappingURL=index.js.map
+
 
 
 
